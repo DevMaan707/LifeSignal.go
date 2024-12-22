@@ -3,25 +3,26 @@ package database
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+type MongoConnection struct {
+	Client *mongo.Client
+}
+
 var DB *mongo.Client
 
-func ConnectDB() error {
+func ConnectDB() (*mongo.Client, error) {
 	mongoURI := os.Getenv("MONGO_URI")
 	if mongoURI == "" {
-		return fmt.Errorf("MONGO_URI environment variable is not set")
+		return nil, fmt.Errorf("MONGO_URI environment variable is not set")
 	}
 
 	serverAPI := options.ServerAPI(options.ServerAPIVersion1)
-
 	clientOptions := options.Client().ApplyURI(mongoURI).SetServerAPIOptions(serverAPI)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -29,34 +30,31 @@ func ConnectDB() error {
 
 	client, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
-		return fmt.Errorf("failed to connect to MongoDB: %v", err)
+		return nil, fmt.Errorf("failed to connect to MongoDB: %v", err)
 	}
 
-	err = client.Database("admin").RunCommand(ctx, bson.D{{"ping", 1}}).Err()
+	err = client.Database("admin").RunCommand(ctx, map[string]interface{}{"ping": 1}).Err()
 	if err != nil {
-		return fmt.Errorf("failed to ping MongoDB: %v", err)
+		return nil, fmt.Errorf("failed to ping MongoDB: %v", err)
 	}
 
-	DB = client
 	fmt.Println("Connected to MongoDB!")
-
-	return nil
+	return client, nil
 }
 
-func GetCollection(databaseName, collectionName string) *mongo.Collection {
-	return DB.Database(databaseName).Collection(collectionName)
+func GetCollection(db *mongo.Client, databaseName, collectionName string) *mongo.Collection {
+	return db.Database(databaseName).Collection(collectionName)
 }
 
-func DisconnectDB() error {
-	if DB == nil {
+func DisconnectDB(client *mongo.Client) error {
+	if client == nil {
 		return fmt.Errorf("no active database connection")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	err := DB.Disconnect(ctx)
-	if err != nil {
+	if err := client.Disconnect(ctx); err != nil {
 		return fmt.Errorf("failed to disconnect from MongoDB: %v", err)
 	}
 

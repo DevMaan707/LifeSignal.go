@@ -1,0 +1,25 @@
+meta {
+  name: signup
+  type: http
+  seq: 2
+}
+
+post {
+  url: http://localhost:8080/auth/signup
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "username": "johndoe",
+    "email": "user@example.com",
+    "phone": "+1234567890",
+    "first_name": "John",
+    "last_name": "Doe",
+    "password": "securepassword123",
+    "confirm_password": "securepassword123",
+    "otp": "123456"
+  }
+  
+}

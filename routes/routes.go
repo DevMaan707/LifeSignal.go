@@ -1,20 +1,21 @@
 package routes
 
 import (
+	"life-signal/handlers"
 	"life-signal/middleware"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
-func Routes(engine *gin.Engine) {
-
+func Routes(engine *gin.Engine, db *mongo.Client) {
 	auth := engine.Group("/auth")
 	{
-		auth.POST("/login", loginHandler)
-		auth.POST("/signup", signupHandler)
-		auth.POST("/getOtp", getOtpHandler)
-		auth.POST("/verifyOtp", verifyOtpHandler)
+		auth.POST("/login", func(c *gin.Context) { handlers.Login(c, db) })
+		auth.POST("/signup", func(c *gin.Context) { handlers.Register(c, db) })
+		auth.POST("/getOtp", func(c *gin.Context) { handlers.GetOtpHandler(c, db) })
+		auth.POST("/verifyOtp", func(c *gin.Context) { handlers.VerifyOtpHandler(c, db) })
 	}
 
 	protected := engine.Group("/protected")

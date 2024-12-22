@@ -2,6 +2,7 @@ package models
 
 import (
 	"time"
+
 	"github.com/dgrijalva/jwt-go"
 )
 
@@ -22,29 +23,27 @@ type CreateAccountReq struct {
 }
 
 type LoginReq struct {
-	Phone    string `json:"phone" validate:"required,e164"`
-	Password string `json:"password"`
-	OTP      string `json:"otp,omitempty"` 
+	Email    string `json:"email" validate:"required,email"`
+	Password string `json:"password" validate:"required,min=8,max=128"`
 }
+
 type OTPRequest struct {
 	Phone string `json:"phone" validate:"required,e164"`
-	OTP   string `json:"otp" validate:"required,len=6"`  
 }
 
 type VerifyOTPRequest struct {
-	Phone string `json:"phone" validate:"required,e164"` 
-	OTP   string `json:"otp" validate:"required,len=6"` 
+	Phone string `json:"phone" validate:"required,e164"`
+	OTP   string `json:"otp" validate:"required,len=6"`
 }
 
-type CreateAccountDetails struct {
-	ID        string    `json:"id"`
-	Username  string    `json:"username" validate:"required,min=3,max=32"`
-	Email     string    `json:"email" validate:"required,email"`
-	Phone     string    `json:"phone" validate:"required,e164"`
-	FirstName string    `json:"first_name" validate:"omitempty,min=1,max=32"`
-	LastName  string    `json:"last_name" validate:"omitempty,min=1,max=32"`
-	Password  string    `json:"password" validate:"required,min=8,max=128"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	OTP       string    `json:"otp,omitempty"`
+type UserDetails struct {
+	ID           string    `json:"id" bson:"_id"`
+	Username     string    `json:"username" bson:"username"`
+	Email        string    `json:"email" bson:"email"`
+	Phone        string    `json:"phone" bson:"phone"`
+	FirstName    string    `json:"first_name,omitempty" bson:"first_name,omitempty"`
+	LastName     string    `json:"last_name,omitempty" bson:"last_name,omitempty"`
+	PasswordHash string    `json:"password_hash" bson:"password_hash"`
+	CreatedAt    time.Time `json:"created_at" bson:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at" bson:"updated_at"`
 }
