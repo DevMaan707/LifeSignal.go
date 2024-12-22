@@ -1,0 +1,15 @@
+meta {
+  name: get-all-docs
+  type: http
+  seq: 2
+}
+
+get {
+  url: http://localhost:8080/v1/get-doctors
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3MzQ5ODI0NTEsImlhdCI6MTczNDg5NjA1MSwiaXNzIjoiNTJlNmNjM2QtNjY0Yi00NWY1LThkMmMtZTI5ZTUyMWNhNWYxIn0.Shy6bAjP39rjKnhBKGxYdJydvaNYsAYx8NbsNpA6i-o
+}
