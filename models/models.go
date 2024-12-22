@@ -25,7 +25,7 @@ type LoginReq struct {
 	Phone    string `json:"phone" validate:"required,e164"`
 	Password string `json:"password"`
 	OTP      string `json:"otp,omitempty"` 
-
+}
 type OTPRequest struct {
 	Phone string `json:"phone" validate:"required,e164"`
 	OTP   string `json:"otp" validate:"required,len=6"`  

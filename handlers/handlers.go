@@ -148,6 +148,7 @@ func VerifyOtpHandler(c *gin.Context, db *database.MongoConnection) {
 }
 
 func CreateProject(c *gin.Context, db *database.MongoConnection) {
+
 }
 
 func FetchProjectsByUserId(c *gin.Context, db *database.MongoConnection) {
@@ -155,4 +156,5 @@ func FetchProjectsByUserId(c *gin.Context, db *database.MongoConnection) {
 }
 
 =func UpdateUserProfile(c *gin.Context, db *database.MongoConnection) {
+
 }
