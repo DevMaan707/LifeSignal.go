@@ -17,6 +17,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func Register(c *gin.Context, db *mongo.Client) {
@@ -26,20 +27,43 @@ func Register(c *gin.Context, db *mongo.Client) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	userCollection := database.GetCollection(db, "life-signal", "users")
+	var existingUser models.UserDetails
+	err := userCollection.FindOne(c, bson.M{
+		"$or": []bson.M{
+			{"email": payload.Email},
+			{"phone": payload.Phone},
+			{"username": payload.Username},
+		},
+	}).Decode(&existingUser)
 
+	if err == nil {
+		if existingUser.Email == payload.Email {
+			c.JSON(http.StatusConflict, gin.H{"error": "A user with this email already exists"})
+			return
+		} else if existingUser.Phone == payload.Phone {
+			c.JSON(http.StatusConflict, gin.H{"error": "A user with this phone number already exists"})
+			return
+		} else if existingUser.Username == payload.Username {
+			c.JSON(http.StatusConflict, gin.H{"error": "A user with this username already exists"})
+			return
+		}
+	} else if err != mongo.ErrNoDocuments {
+		slog.Error("Registration failed: Database error while checking user existence", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
 	storedOtp, err := helpers.RetrieveOTP(payload.Phone)
 	if err != nil || !helpers.VerifyOTP(storedOtp, payload.OTP) {
 		slog.Warn("Registration failed: Invalid or expired OTP", "phone", payload.Phone)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid or expired OTP"})
 		return
 	}
-
 	if payload.Password != payload.ConfirmPassword {
 		slog.Warn("Registration failed: Passwords do not match", "email", payload.Email)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Passwords do not match"})
 		return
 	}
-
 	userID := uuid.New().String()
 	passwordHash, err := helpers.HashPassword(payload.Password)
 	if err != nil {
@@ -47,7 +71,6 @@ func Register(c *gin.Context, db *mongo.Client) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
 		return
 	}
-
 	user := models.UserDetails{
 		ID:           userID,
 		Username:     payload.Username,
@@ -59,26 +82,45 @@ func Register(c *gin.Context, db *mongo.Client) {
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 	}
-
-	userCollection := database.GetCollection(db, "life-signal", "users")
 	_, err = userCollection.InsertOne(c, user)
 	if err != nil {
 		slog.Error("Registration failed: Error inserting user into database", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to insert user into database"})
 		return
 	}
-
 	token, err := helpers.GenerateJWT(userID, time.Now().Add(24*time.Hour))
 	if err != nil {
 		slog.Error("Registration failed: Error generating JWT", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
 		return
 	}
-
 	slog.Info("Registration successful", "userID", userID)
 	c.JSON(http.StatusOK, gin.H{"token": token, "userId": userID})
 }
-
+func GetUserDetails(c *gin.Context, db *mongo.Client) {
+	userID := c.Param("userid")
+	if userID == "" {
+		slog.Warn("GetUserDetails failed: Missing user ID")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "User ID is required"})
+		return
+	}
+	userCollection := database.GetCollection(db, "life-signal", "users")
+	var user models.UserDetails
+	err := userCollection.FindOne(c, bson.M{"_id": userID}).Decode(&user)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			slog.Warn("GetUserDetails failed: User not found", "userID", userID)
+			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		} else {
+			slog.Error("GetUserDetails failed: Database query error", "error", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve user details"})
+		}
+		return
+	}
+	user.PasswordHash = ""
+	slog.Info("GetUserDetails successful", "userID", userID)
+	c.JSON(http.StatusOK, gin.H{"user": user})
+}
 func Login(c *gin.Context, db *mongo.Client) {
 	var login models.LoginReq
 	if err := c.BindJSON(&login); err != nil {
@@ -86,24 +128,17 @@ func Login(c *gin.Context, db *mongo.Client) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
 		return
 	}
-
 	userCollection := database.GetCollection(db, "life-signal", "users")
 	var user models.UserDetails
-	err := userCollection.FindOne(c, bson.M{"email": login.Email}).Decode(&user)
+	err := userCollection.FindOne(c, bson.M{"phone": login.PhoneNumber}).Decode(&user)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			slog.Warn("Login failed: No user found", "email", login.Email)
+			slog.Warn("Login failed: No user found", "phone_number", login.PhoneNumber)
 			c.JSON(http.StatusBadRequest, gin.H{"error": "No user found"})
 		} else {
 			slog.Error("Login failed: Error fetching user", "error", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal error"})
 		}
-		return
-	}
-
-	if err := helpers.VerifyPassword(user.PasswordHash, login.Password); err != nil {
-		slog.Warn("Login failed: Invalid password", "email", login.Email)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid password"})
 		return
 	}
 
@@ -350,7 +385,42 @@ func GetUserMedicalHistory(c *gin.Context, db *mongo.Client) {
 	slog.Info("Medical history retrieved successfully", "userID", userID)
 	c.JSON(http.StatusOK, gin.H{"medical_history": medicalHistory})
 }
+func SetUserMedicalHistory(c *gin.Context, db *mongo.Client) {
+	userID := c.Param("userid")
+	if userID == "" {
+		slog.Error("SetUserMedicalHistory failed: UserID is required")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "UserID is required"})
+		return
+	}
+	var payload models.MedicalHistory
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		slog.Error("SetUserMedicalHistory failed: Invalid request body", "error", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+	if payload.UserID != userID {
+		slog.Warn("SetUserMedicalHistory failed: UserID mismatch", "routeUserID", userID, "payloadUserID", payload.UserID)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "UserID in the payload does not match the route parameter"})
+		return
+	}
+	historyCollection := database.GetCollection(db, "life-signal", "user-medical-history")
+	payload.ID = uuid.New().String()
+	payload.CreatedAt = time.Now()
+	_, err := historyCollection.UpdateOne(
+		c,
+		bson.M{"user_id": userID},
+		bson.M{"$set": payload},
+		options.Update().SetUpsert(true),
+	)
+	if err != nil {
+		slog.Error("SetUserMedicalHistory failed: Database error", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save medical history"})
+		return
+	}
 
+	slog.Info("SetUserMedicalHistory successful", "userID", userID)
+	c.JSON(http.StatusOK, gin.H{"message": "Medical history saved successfully"})
+}
 func GetAllDoctors(c *gin.Context, db *mongo.Client) {
 	doctorCollection := database.GetCollection(db, "life-signal", "doctors")
 	cursor, err := doctorCollection.Find(c, bson.M{})

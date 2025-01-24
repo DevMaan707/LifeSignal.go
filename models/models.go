@@ -23,8 +23,8 @@ type CreateAccountReq struct {
 }
 
 type LoginReq struct {
-	Email    string `json:"email" validate:"required,email"`
-	Password string `json:"password" validate:"required,min=8,max=128"`
+	PhoneNumber string `json:"phone_number" validate:"required,phone"`
+	Otp         string `json:"otp"`
 }
 
 type OTPRequest struct {
