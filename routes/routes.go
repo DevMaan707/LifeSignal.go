@@ -35,6 +35,11 @@ func Routes(engine *gin.Engine, db *mongo.Client) {
 		protected.GET("/get-medical-history/:userid", func(c *gin.Context) {
 			handlers.GetUserMedicalHistory(c, db)
 		})
-
+		protected.GET("/get-user/:userid", func(c *gin.Context) {
+			handlers.GetUserDetails(c, db)
+		})
+		protected.POST("/set-medical-history/:userid", func(c *gin.Context) {
+			handlers.SetUserMedicalHistory(c, db)
+		})
 	}
 }
